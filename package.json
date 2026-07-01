@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
-  
   "dependencies": {
     "@stomp/stompjs": "^7.3.0",
     "framer-motion": "^12.42.0",
@@ -27,6 +28,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "gh-pages": "^6.3.0",
     "oxlint": "^1.69.0",
     "tailwindcss": "^4.3.2",
     "typescript": "~6.0.2",
