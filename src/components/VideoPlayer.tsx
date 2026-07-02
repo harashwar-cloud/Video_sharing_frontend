@@ -64,6 +64,92 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isBuffering, setIsBuffering] = useState(false);
   const [latencyText, setLatencyText] = useState('0ms');
 
+  const [showControls, setShowControls] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isHoveringControls, setIsHoveringControls] = useState(false);
+  const [isDraggingScrubber, setIsDraggingScrubber] = useState(false);
+
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+
+    setShowControls(true);
+
+    if (!isPlaying || isHoveringControls || isDraggingScrubber) {
+      return;
+    }
+
+    inactivityTimerRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 2500);
+  }, [isPlaying, isHoveringControls, isDraggingScrubber]);
+
+  const handleInteraction = useCallback(() => {
+    resetInactivityTimer();
+  }, [resetInactivityTimer]);
+
+  useEffect(() => {
+    if (!isDraggingScrubber) return;
+    const handleMouseUp = () => {
+      setIsDraggingScrubber(false);
+    };
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchend', handleMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isDraggingScrubber]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFull = !!(
+        document.fullscreenElement &&
+        (document.fullscreenElement === containerRef.current ||
+          containerRef.current?.contains(document.fullscreenElement))
+      );
+      setIsFullscreen(isFull);
+      handleInteraction();
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [handleInteraction]);
+
+  useEffect(() => {
+    const handleKeyDown = () => {
+      const isPlayerFocused = containerRef.current?.contains(document.activeElement);
+      const isFullscreenActive = !!document.fullscreenElement;
+      if (isPlayerFocused || isFullscreenActive) {
+        handleInteraction();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleInteraction]);
+
+  useEffect(() => {
+    resetInactivityTimer();
+  }, [isPlaying, isHoveringControls, isDraggingScrubber, resetInactivityTimer]);
+
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, []);
+
   // Drive pre-loading overlay (drive/remote only)
   const [showDriveLoader, setShowDriveLoader] = useState(isPreloading);
   const [driveProgress, setDriveProgress] = useState(0);
@@ -418,7 +504,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const showBufferingIndicator = !isLocal && (isBuffering || isAdminBuffering || hostBuffering);
 
   return (
-    <div className="relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl group">
+    <div
+      ref={containerRef}
+      onMouseMove={handleInteraction}
+      onTouchStart={handleInteraction}
+      className={`relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl transition-all duration-300 ${
+        isFullscreen && !showControls ? 'cursor-none' : ''
+      }`}
+    >
 
       {/* Video element */}
       <video
@@ -526,7 +619,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       )}
 
       {/* ── Latency / Status Badge ───────────────────────────────────────── */}
-      <div className="absolute top-4 left-4 bg-slate-950/80 backdrop-blur-md border border-slate-800 px-3 py-1 rounded-full flex items-center gap-2">
+      <div className={`absolute top-4 left-4 bg-slate-950/80 backdrop-blur-md border border-slate-800 px-3 py-1 rounded-full flex items-center gap-2 transition-opacity duration-300 ${
+        showControls && !showBufferingIndicator ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}>
         <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
         <span className="text-xs text-slate-300 font-mono">
           {isAdmin
@@ -537,7 +632,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {/* ── Source Badge (local only) ───────────────────────────────────── */}
       {isLocal && (
-        <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-md border border-emerald-800/40 px-2.5 py-1 rounded-full">
+        <div className={`absolute top-4 right-4 flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-md border border-emerald-800/40 px-2.5 py-1 rounded-full transition-opacity duration-300 ${
+          showControls && !showBufferingIndicator ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           <span className="text-[10px] text-emerald-400 font-semibold font-mono">Local File</span>
         </div>
@@ -545,14 +642,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {/* ── Admin: Waiting for Participants (local only, play disabled) ──── */}
       {isAdmin && isLocal && isPlayDisabled && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-blue-800/40 px-4 py-2 rounded-xl z-10 pointer-events-none">
+        <div className={`absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-blue-800/40 px-4 py-2 rounded-xl z-10 pointer-events-none transition-opacity duration-300 ${
+          showControls && !showBufferingIndicator ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}>
           <Users className="w-3.5 h-3.5 text-blue-400" />
           <span className="text-[11px] text-blue-300 font-semibold">Waiting for all participants to be ready…</span>
         </div>
       )}
 
       {/* ── Controls HUD ────────────────────────────────────────────────── */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-3">
+      <div
+        onMouseEnter={() => setIsHoveringControls(true)}
+        onMouseLeave={() => setIsHoveringControls(false)}
+        className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-transparent transition-opacity duration-300 flex flex-col gap-3 ${
+          showControls && !showBufferingIndicator ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      >
 
         {/* Progress bar / Scrubber */}
         <div className="flex items-center gap-2">
@@ -564,6 +669,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             step={0.1}
             value={currentTime}
             onChange={handleScrubberChange}
+            onMouseDown={() => setIsDraggingScrubber(true)}
+            onTouchStart={() => setIsDraggingScrubber(true)}
             disabled={!isAdmin}
             className={`w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500 ${
               isAdmin ? 'hover:h-2 transition-all' : 'cursor-not-allowed'
@@ -594,8 +701,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 disabled={!showSyncOverlay}
                 className={`p-2 rounded-full transition-colors ${
                   showSyncOverlay
-                    ? 'hover:bg-slate-800 text-blue-400 animate-pulse'
-                    : 'text-slate-400 opacity-50 cursor-not-allowed'
+                     ? 'hover:bg-slate-800 text-blue-400 animate-pulse'
+                     : 'text-slate-400 opacity-50 cursor-not-allowed'
                 }`}
                 title={showSyncOverlay ? 'Click to join playback' : 'Playback locked to Host'}
               >
