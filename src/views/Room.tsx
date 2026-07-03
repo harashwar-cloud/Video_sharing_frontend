@@ -1158,7 +1158,7 @@ export const Room: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#090d16] text-slate-100 flex flex-col">
       {/* Header */}
       <header className="px-6 py-4 bg-slate-950/80 border-b border-slate-900/60 backdrop-blur-md flex justify-between items-center z-40">
         <div className="flex items-center gap-3">
@@ -1244,7 +1244,7 @@ export const Room: React.FC = () => {
         </div>
 
         {/* Right: Tabbed Sidebar */}
-        <div className="w-full lg:w-96 bg-slate-950/80 border-t lg:border-t-0 lg:border-l border-slate-900/60 flex flex-col h-[500px] lg:h-auto">
+        <div className="w-full lg:w-96 bg-slate-950/80 border-t lg:border-t-0 lg:border-l border-slate-900/60 flex flex-col h-[500px] lg:h-full">
           <div className="flex border-b border-slate-900/60 p-2 gap-1 bg-slate-950">
             {(['chat', 'map', 'analytics'] as const).map((tab) => (
               <button
